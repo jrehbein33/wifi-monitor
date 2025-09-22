@@ -18,6 +18,7 @@ import time
 from wifi_monitor import WiFiMonitor
 from network_scanner import NetworkScanner
 from alert_manager import AlertManager
+from vulnerability_analyzer import VulnerabilityAnalyzer
 
 class WiFiMonitorApp:
     def __init__(self, root):
@@ -29,6 +30,7 @@ class WiFiMonitorApp:
         self.wifi_monitor = WiFiMonitor()
         self.network_scanner = NetworkScanner()
         self.alert_manager = AlertManager()
+        self.vulnerability_analyzer = VulnerabilityAnalyzer()
         
         # Variables para control de monitoreo
         self.monitoring = False
@@ -129,6 +131,12 @@ class WiFiMonitorApp:
         notebook.add(config_frame, text="Configuración")
         
         self.setup_config_tab(config_frame)
+        
+        # Pestaña de vulnerabilidades  
+        vuln_frame = ttk.Frame(notebook, padding="10")
+        notebook.add(vuln_frame, text="Vulnerabilidades")
+        
+        self.setup_vulnerability_tab(vuln_frame)
         
         # Configurar redimensionamiento
         self.root.columnconfigure(0, weight=1)
@@ -374,6 +382,225 @@ class WiFiMonitorApp:
             messagebox.showinfo("Configuración", "Configuración guardada exitosamente")
         except ValueError:
             messagebox.showerror("Error", "Por favor, ingresa valores numéricos válidos")
+    
+    def setup_vulnerability_tab(self, parent):
+        """Configurar la pestaña de vulnerabilidades"""
+        # Título
+        title_label = ttk.Label(parent, text="Análisis de Vulnerabilidades de Red", 
+                               font=("Arial", 14, "bold"))
+        title_label.grid(row=0, column=0, columnspan=3, pady=(0, 20))
+        
+        # Frame de resumen de seguridad
+        summary_frame = ttk.LabelFrame(parent, text="Resumen de Seguridad", padding="10")
+        summary_frame.grid(row=1, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(0, 10))
+        
+        self.security_score_label = ttk.Label(summary_frame, text="Puntuación de Seguridad: -- / 100", 
+                                             font=("Arial", 12, "bold"))
+        self.security_score_label.grid(row=0, column=0, sticky=tk.W)
+        
+        self.total_vulnerabilities_label = ttk.Label(summary_frame, text="Total de Vulnerabilidades: --")
+        self.total_vulnerabilities_label.grid(row=1, column=0, sticky=tk.W)
+        
+        self.last_scan_label = ttk.Label(summary_frame, text="Último Escaneo: --")
+        self.last_scan_label.grid(row=2, column=0, sticky=tk.W)
+        
+        # Frame de severidad
+        severity_frame = ttk.LabelFrame(summary_frame, text="Por Severidad", padding="5")
+        severity_frame.grid(row=0, column=1, rowspan=3, sticky=(tk.W, tk.E, tk.N, tk.S), padx=(20, 0))
+        
+        self.critical_label = ttk.Label(severity_frame, text="Críticas: --", foreground="red")
+        self.critical_label.grid(row=0, column=0, sticky=tk.W)
+        
+        self.high_label = ttk.Label(severity_frame, text="Altas: --", foreground="orange")
+        self.high_label.grid(row=1, column=0, sticky=tk.W)
+        
+        self.medium_label = ttk.Label(severity_frame, text="Medias: --", foreground="yellow")
+        self.medium_label.grid(row=2, column=0, sticky=tk.W)
+        
+        self.low_label = ttk.Label(severity_frame, text="Bajas: --", foreground="green")
+        self.low_label.grid(row=3, column=0, sticky=tk.W)
+        
+        # Lista de vulnerabilidades
+        vuln_list_frame = ttk.LabelFrame(parent, text="Vulnerabilidades Detectadas", padding="10")
+        vuln_list_frame.grid(row=2, column=0, columnspan=3, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(0, 10))
+        
+        columns = ("Dispositivo", "Puerto", "Servicio", "Severidad", "Descripción")
+        self.vulnerabilities_tree = ttk.Treeview(vuln_list_frame, columns=columns, show="headings", height=12)
+        self.vulnerabilities_tree.heading("Dispositivo", text="IP Dispositivo")
+        self.vulnerabilities_tree.heading("Puerto", text="Puerto")
+        self.vulnerabilities_tree.heading("Servicio", text="Servicio")
+        self.vulnerabilities_tree.heading("Severidad", text="Severidad")
+        self.vulnerabilities_tree.heading("Descripción", text="Descripción")
+        
+        # Configurar anchos de columna
+        self.vulnerabilities_tree.column("Dispositivo", width=120)
+        self.vulnerabilities_tree.column("Puerto", width=80)
+        self.vulnerabilities_tree.column("Servicio", width=100)
+        self.vulnerabilities_tree.column("Severidad", width=100)
+        self.vulnerabilities_tree.column("Descripción", width=400)
+        
+        scrollbar_vuln = ttk.Scrollbar(vuln_list_frame, orient=tk.VERTICAL, command=self.vulnerabilities_tree.yview)
+        self.vulnerabilities_tree.configure(yscrollcommand=scrollbar_vuln.set)
+        
+        self.vulnerabilities_tree.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+        scrollbar_vuln.grid(row=0, column=1, sticky=(tk.N, tk.S))
+        
+        # Frame de recomendaciones
+        recommendations_frame = ttk.LabelFrame(parent, text="Recomendaciones de Seguridad", padding="10")
+        recommendations_frame.grid(row=3, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(0, 10))
+        
+        self.recommendations_text = tk.Text(recommendations_frame, height=6, wrap=tk.WORD)
+        scrollbar_rec = ttk.Scrollbar(recommendations_frame, orient=tk.VERTICAL, command=self.recommendations_text.yview)
+        self.recommendations_text.configure(yscrollcommand=scrollbar_rec.set)
+        
+        self.recommendations_text.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+        scrollbar_rec.grid(row=0, column=1, sticky=(tk.N, tk.S))
+        
+        # Botones de control de vulnerabilidades
+        vuln_buttons_frame = ttk.Frame(parent)
+        vuln_buttons_frame.grid(row=4, column=0, columnspan=3, pady=(10, 0))
+        
+        self.scan_vulnerabilities_btn = ttk.Button(vuln_buttons_frame, text="Escanear Vulnerabilidades", 
+                                                  command=self.scan_vulnerabilities)
+        self.scan_vulnerabilities_btn.grid(row=0, column=0, padx=(0, 10))
+        
+        self.export_report_btn = ttk.Button(vuln_buttons_frame, text="Exportar Reporte", 
+                                           command=self.export_vulnerability_report)
+        self.export_report_btn.grid(row=0, column=1, padx=(0, 10))
+        
+        self.refresh_vuln_btn = ttk.Button(vuln_buttons_frame, text="Actualizar", 
+                                          command=self.refresh_vulnerabilities)
+        self.refresh_vuln_btn.grid(row=0, column=2)
+        
+        # Configurar redimensionamiento para vulnerabilidades
+        parent.columnconfigure(0, weight=1)
+        parent.rowconfigure(2, weight=1)
+        vuln_list_frame.columnconfigure(0, weight=1)
+        vuln_list_frame.rowconfigure(0, weight=1)
+        recommendations_frame.columnconfigure(0, weight=1)
+        recommendations_frame.rowconfigure(0, weight=1)
+    
+    def scan_vulnerabilities(self):
+        """Escanear vulnerabilidades en la red"""
+        self.scan_vulnerabilities_btn.config(state=tk.DISABLED, text="Escaneando...")
+        
+        # Ejecutar escaneo en hilo separado
+        threading.Thread(target=self._vulnerability_scan_thread, daemon=True).start()
+    
+    def _vulnerability_scan_thread(self):
+        """Hilo para escaneo de vulnerabilidades"""
+        try:
+            # Obtener dispositivos de la red
+            devices = self.network_scanner.scan_network()
+            device_ips = [device['ip'] for device in devices if device['ip'] != 'N/A']
+            
+            # Realizar análisis de vulnerabilidades
+            self.vulnerability_report = self.vulnerability_analyzer.scan_network_devices(device_ips)
+            
+            # Actualizar interfaz en hilo principal
+            self.root.after(0, self._update_vulnerability_display)
+            
+        except Exception as e:
+            print(f"Error durante el escaneo de vulnerabilidades: {e}")
+            self.root.after(0, lambda: self.scan_vulnerabilities_btn.config(
+                state=tk.NORMAL, text="Escanear Vulnerabilidades"))
+    
+    def _update_vulnerability_display(self):
+        """Actualizar la visualización de vulnerabilidades"""
+        try:
+            if not hasattr(self, 'vulnerability_report') or not self.vulnerability_report:
+                return
+            
+            report = self.vulnerability_report
+            
+            # Actualizar resumen
+            total_devices = report.get('total_devices', 0)
+            total_vulns = report.get('total_vulnerabilities', 0)
+            severity_summary = report.get('severity_summary', {})
+            
+            # Calcular puntuación promedio de seguridad
+            device_summaries = report.get('device_summaries', {})
+            if device_summaries:
+                avg_score = sum(summary.get('risk_score', 0) for summary in device_summaries.values()) / len(device_summaries)
+                security_score = max(0, 100 - avg_score)
+            else:
+                security_score = 100
+            
+            self.security_score_label.config(text=f"Puntuación de Seguridad: {security_score:.0f} / 100")
+            self.total_vulnerabilities_label.config(text=f"Total de Vulnerabilidades: {total_vulns}")
+            self.last_scan_label.config(text=f"Último Escaneo: {report.get('scan_timestamp', 'N/A')[:19].replace('T', ' ')}")
+            
+            # Actualizar contadores por severidad
+            self.critical_label.config(text=f"Críticas: {severity_summary.get('Critical', 0)}")
+            self.high_label.config(text=f"Altas: {severity_summary.get('High', 0)}")
+            self.medium_label.config(text=f"Medias: {severity_summary.get('Medium', 0)}")
+            self.low_label.config(text=f"Bajas: {severity_summary.get('Low', 0)}")
+            
+            # Limpiar y actualizar lista de vulnerabilidades
+            for item in self.vulnerabilities_tree.get_children():
+                self.vulnerabilities_tree.delete(item)
+            
+            # Añadir vulnerabilidades de dispositivos
+            for device_ip, device_data in device_summaries.items():
+                for vuln in device_data.get('vulnerabilities', []):
+                    self.vulnerabilities_tree.insert("", tk.END, values=(
+                        vuln.get('device_ip', device_ip),
+                        vuln.get('port', 'N/A'),
+                        vuln.get('service', 'N/A'),
+                        vuln.get('severity', 'Low'),
+                        vuln.get('description', '')[:80] + "..." if len(vuln.get('description', '')) > 80 else vuln.get('description', '')
+                    ))
+            
+            # Añadir vulnerabilidades de red
+            for vuln in report.get('network_vulnerabilities', []):
+                self.vulnerabilities_tree.insert("", tk.END, values=(
+                    'Red General',
+                    'N/A',
+                    'Configuración',
+                    vuln.get('severity', 'Low'),
+                    vuln.get('description', '')[:80] + "..." if len(vuln.get('description', '')) > 80 else vuln.get('description', '')
+                ))
+            
+            # Actualizar recomendaciones
+            recommendations = self.vulnerability_analyzer.get_top_recommendations()
+            self.recommendations_text.delete(1.0, tk.END)
+            if recommendations:
+                recommendation_text = "📋 RECOMENDACIONES PRINCIPALES:\n\n"
+                for i, rec in enumerate(recommendations, 1):
+                    recommendation_text += f"{i}. {rec}\n\n"
+            else:
+                recommendation_text = "✅ No se encontraron vulnerabilidades críticas.\n\nTu red parece estar bien configurada desde el punto de vista de seguridad básica."
+            
+            self.recommendations_text.insert(1.0, recommendation_text)
+            
+        except Exception as e:
+            print(f"Error actualizando vulnerabilidades: {e}")
+        finally:
+            self.scan_vulnerabilities_btn.config(state=tk.NORMAL, text="Escanear Vulnerabilidades")
+    
+    def refresh_vulnerabilities(self):
+        """Actualizar visualización de vulnerabilidades"""
+        if hasattr(self, 'vulnerability_report') and self.vulnerability_report:
+            self._update_vulnerability_display()
+    
+    def export_vulnerability_report(self):
+        """Exportar reporte de vulnerabilidades"""
+        if not hasattr(self, 'vulnerability_report') or not self.vulnerability_report:
+            messagebox.showwarning("Advertencia", "No hay datos de vulnerabilidades para exportar. Ejecuta un escaneo primero.")
+            return
+        
+        try:
+            import json
+            from datetime import datetime
+            
+            filename = f"vulnerability_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+            with open(filename, 'w', encoding='utf-8') as f:
+                json.dump(self.vulnerability_report, f, indent=2, ensure_ascii=False)
+            
+            messagebox.showinfo("Éxito", f"Reporte exportado como {filename}")
+        except Exception as e:
+            messagebox.showerror("Error", f"Error al exportar reporte: {e}")
+
 
 def main():
     root = tk.Tk()
